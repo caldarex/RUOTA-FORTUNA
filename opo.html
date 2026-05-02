@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <title>LA RUOTA DELLA FORTUNA - MEGA EDITION</title>
+    <style>
+        :root { 
+            --p: #00ffcc; --s: #ff00ff; --g: #ffd700; --bg: #050510; --cyan: #00ffff; --red: #ff3333;
+            --gold: linear-gradient(135deg, #bf953f, #fcf6ba, #b38728, #fcf6ba, #aa771c);
+        }
+        * { box-sizing: border-box; font-family: 'Arial Black', sans-serif; }
+        body, html { margin: 0; padding: 0; height: 100vh; background: var(--bg); color: #fff; overflow: hidden; }
+
+        #studio-bg { position: fixed; inset: 0; background: radial-gradient(circle at 50% 50%, #110022 0%, #000 100%); z-index: -2; }
+        .grid-bg { position: absolute; inset: 0; background-image: linear-gradient(rgba(0, 255, 200, 0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(0, 255, 200, 0.1) 1px, transparent 1px); background-size: 50px 50px; opacity: 0.2; transform: rotateX(60deg) translateY(-100px); }
+
+        /* MENU INIZIALE */
+        #menu { position: fixed; inset: 0; background: rgba(0,0,0,0.98); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 10000; backdrop-filter: blur(20px); }
+        .setup-section { background: rgba(255,255,255,0.05); border-radius: 20px; padding: 20px; width: 95%; max-width: 1100px; border: 2px solid var(--cyan); }
+        .p-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-top: 15px; }
+        input[type="text"], .gm-input { padding: 10px; background: #000; border: 2px solid #444; color: #fff; border-radius: 8px; width: 100%; text-transform: uppercase; outline: none; }
+
+        /* HUD GIOCATORI */
+        #hud-top { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; padding: 10px; width: 100%; background: rgba(0,0,0,0.6); border-bottom: 2px solid #333; z-index: 100; }
+        .p-card { background: #111; padding: 8px 12px; border-radius: 10px; text-align: center; border: 2px solid #333; min-width: 110px; transition: 0.4s; position: relative; }
+        .p-card.active { border-color: var(--p); box-shadow: 0 0 15px var(--p); transform: scale(1.05); background: #001a14; }
+        .p-bank { color: var(--g); font-size: 1.2rem; }
+
+        /* AREA TABELLONE */
+        #game-ui { display: none; flex-direction: column; align-items: center; height: 100vh; width: 100%; }
+        #cat-display { background: var(--s); color: #fff; padding: 8px 50px; border-radius: 50px; font-size: 1.3rem; letter-spacing: 3px; margin: 15px 0; box-shadow: 0 0 15px var(--s); text-transform: uppercase; border: 3px solid #fff; z-index: 5; }
+        
+        .board { background: #004422; border: 10px solid #222; padding: 15px; border-radius: 15px; box-shadow: 0 20px 50px rgba(0,0,0,0.8); z-index: 5; max-width: 98vw; }
+        .row { display: flex; justify-content: center; gap: 5px; margin-bottom: 6px; }
+        .tile { width: 42px; height: 60px; perspective: 1000px; }
+        .tile-in { width: 100%; height: 100%; transition: 0.6s transform cubic-bezier(0.4, 0, 0.2, 1); transform-style: preserve-3d; position: relative; }
+        .tile.flipped .tile-in { transform: rotateY(180deg); }
+        .face { position: absolute; inset: 0; backface-visibility: hidden; display: flex; align-items: center; justify-content: center; font-size: 28px; border-radius: 4px; }
+        .face-front { background: #006633; border: 1px solid #004422; }
+        .face-front.active { background: #fff; }
+        .face-back { background: #fff; color: #000; transform: rotateY(180deg); border: 2px solid #000; }
+
+        /* RUOTA */
+        #wheel-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.92); display: flex; align-items: center; justify-content: center; z-index: 5000; visibility: hidden; opacity: 0; transition: 0.5s; }
+        #wheel-overlay.open { visibility: visible; opacity: 1; }
+        #wheel-container { position: relative; width: 500px; height: 500px; }
+        #canvas-wheel { width: 100%; height: 100%; transition: transform 5s cubic-bezier(0.1, 0, 0, 1); }
+        #pointer { position: absolute; top: -20px; left: 50%; transform: translateX(-50%); width: 40px; height: 60px; background: var(--red); clip-path: polygon(0% 0%, 100% 0%, 50% 100%); z-index: 5001; border: 3px solid #fff; }
+        #wheel-val { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #000; color: var(--g); border-radius: 50%; width: 120px; height: 120px; display: flex; align-items: center; justify-content: center; font-size: 1.8rem; border: 5px solid var(--g); z-index: 5002; }
+
+        /* CONTROLLI */
+        #action-bar { position: fixed; bottom: 0; width: 100%; background: rgba(0,0,0,0.95); padding: 15px; display: flex; justify-content: center; gap: 15px; border-top: 4px solid var(--p); z-index: 1000; }
+        .btn { padding: 10px 25px; border: none; border-radius: 50px; cursor: pointer; text-transform: uppercase; font-weight: bold; transition: 0.2s; }
+        .btn-gira { background: var(--gold); color: #000; }
+
+        /* INPUT BAR IN BASSO */
+        #input-bar { 
+            position: fixed; bottom: 85px; left: 50%; transform: translateX(-50%);
+            width: auto; min-width: 450px; background: rgba(0, 20, 40, 0.95); 
+            backdrop-filter: blur(10px); display: none; flex-direction: column; 
+            align-items: center; padding: 15px 30px; border-radius: 20px 20px 0 0;
+            border: 2px solid var(--p); border-bottom: none; z-index: 9000; 
+        }
+        #cur-input { 
+            background: #000; border: none; border-bottom: 4px solid var(--p); 
+            color: #fff; font-size: 2rem; text-align: center; width: 100%; 
+            outline: none; text-transform: uppercase; margin-top: 10px;
+        }
+
+        /* PANNELLO REGIA */
+        #gm-panel { position: fixed; top: 0; right: -400px; width: 400px; height: 100%; background: #0a0a0a; transition: 0.4s; padding: 60px 20px; z-index: 8000; border-left: 3px solid var(--p); overflow-y: auto; }
+        #gm-panel.open { right: 0; }
+        .gm-section { background: #1a1a1a; padding: 15px; border-radius: 10px; margin-bottom: 15px; border: 1px solid #333; }
+        .gm-player-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+
+        #status-msg { position: fixed; top: 35%; left: 50%; transform: translate(-50%, -50%); font-size: 3.5rem; color: #fff; text-shadow: 0 0 20px var(--p); z-index: 2000; pointer-events: none; opacity: 0; transition: 0.5s; text-align: center; width: 100%; }
+        .top-btn { position: fixed; top: 10px; z-index: 8001; background: rgba(0,0,0,0.8); border: 1px solid var(--p); color: var(--p); padding: 10px 15px; border-radius: 5px; cursor: pointer; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <div id="studio-bg"><div class="grid-bg"></div></div>
+    <h2 id="status-msg"></h2>
+
+    <button class="top-btn" style="left: 10px;" onclick="location.reload()">🏠 HOME</button>
+    <button class="top-btn" style="right: 10px;" onclick="toggleRegia()">⚙️ REGIA</button>
+    
+    <div id="gm-panel">
+        <h2 style="color:var(--p); margin: 0 0 20px 0;">MASTER CONTROL</h2>
+        <div class="gm-section">
+            <h4 style="margin:0 0 10px 0; color:var(--g)">PROSSIMO ROUND</h4>
+            <input type="text" id="gm-cat" class="gm-input" placeholder="Categoria" style="margin-bottom:5px">
+            <input type="text" id="gm-phrase" class="gm-input" placeholder="Frase">
+            <button class="btn" style="width:100%; background:var(--p); color:#000; margin-top:10px;" onclick="forceNewRound()">CARICA ROUND</button>
+        </div>
+        <div class="gm-section">
+            <h4 style="margin:0 0 10px 0; color:var(--cyan)">GIOCATORI</h4>
+            <div id="gm-players-list"></div>
+        </div>
+        <div class="gm-section">
+            <h4 style="margin:0 0 10px 0; color:var(--s)">RUOTA</h4>
+            <textarea id="gm-wheel-data" style="width:100%; height:60px; background:#000; color:#fff; font-size:0.7rem; border:1px solid #444; padding:5px;"></textarea>
+            <button class="btn" style="width:100%; background:#444; color:#fff; margin-top:5px; font-size:0.8rem;" onclick="updateWheelConfig()">AGGIORNA</button>
+        </div>
+        <button class="btn" style="width:100%; background: #ff3333; color:#fff" onclick="toggleRegia()">CHIUDI</button>
+    </div>
+
+    <div id="wheel-overlay">
+        <div id="wheel-container">
+            <div id="pointer"></div>
+            <canvas id="canvas-wheel" width="600" height="600"></canvas>
+            <div id="wheel-val">-</div>
+        </div>
+    </div>
+
+    <div id="menu">
+        <h1 style="font-size:3rem; color:var(--g); margin-bottom:10px;">LA RUOTA DELLA FORTUNA</h1>
+        <div class="setup-section">
+            <p style="text-align:center; margin:0; color:var(--p)">DA 2 A 7 GIOCATORI</p>
+            <div class="p-grid" id="p-inputs">
+                <input type="text" placeholder="GIOCATORE 1" value="MARCO">
+                <input type="text" placeholder="GIOCATORE 2" value="ELENA">
+                <input type="text" placeholder="GIOCATORE 3" value="LUCA">
+                <input type="text" placeholder="GIOCATORE 4">
+                <input type="text" placeholder="GIOCATORE 5">
+                <input type="text" placeholder="GIOCATORE 6">
+                <input type="text" placeholder="GIOCATORE 7">
+            </div>
+        </div>
+        <button class="btn btn-gira" style="margin-top:25px; width:280px; font-size:1.2rem;" onclick="startGame()">INIZIA PARTITA</button>
+    </div>
+
+    <div id="game-ui">
+        <div id="hud-top"></div>
+        <div id="cat-display">CATEGORIA</div>
+        <div class="board" id="board"></div>
+        <div id="input-bar">
+            <h2 id="input-prompt" style="color:var(--p); font-size: 1rem; margin:0;">SCEGLI</h2>
+            <input type="text" id="cur-input" autocomplete="off">
+        </div>
+        <div id="action-bar">
+            <button class="btn btn-gira" id="spin-btn" onclick="spinWheel()">GIRA RUOTA</button>
+            <button class="btn" style="background:#fff; color:#000" onclick="showInput('vowel')">VOCALE</button>
+            <button class="btn" style="background:var(--s); color:#fff" onclick="showInput('solve')">RISOLVI</button>
+        </div>
+    </div>
+
+    <script>
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function sfx(f, t, d, v=0.1) {
+            const o = audioCtx.createOscillator(); const g = audioCtx.createGain();
+            o.type = t; o.frequency.value = f; g.gain.setValueAtTime(v, audioCtx.currentTime);
+            o.connect(g); g.connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime + d);
+        }
+
+        let players = [], curP = 0, phrase = null, currentRot = 0, wheelVal = 0, mode = '', canSpin = true;
+        
+        // DATABASE AMPLIATO
+        const DATABASE = [
+            {f: "IL GLADIATORE", c: "CINEMA"},
+            {f: "PASTA ALLA CARBONARA", c: "CUCINA"},
+            {f: "TORRE DI PISA", c: "MONUMENTI"},
+            {f: "A CAVAL DONATO NON SI GUARDA IN BOCCA", c: "PROVERBI"},
+            {f: "IL CIELO E SEMPRE PIU BLU", c: "MUSICA"},
+            {f: "LA PAZIENZA E LA VIRTU DEI FORTI", c: "PROVERBI"},
+            {f: "TUTTE LE STRADE PORTANO A ROMA", c: "PROVERBI"},
+            {f: "IL RITORNO DEL RE", c: "CINEMA"},
+            {f: "COLOSSEO DI ROMA", c: "MONUMENTI"},
+            {f: "LASAGNE AL FORNO", c: "CUCINA"},
+            {f: "NEL BLU DIPINTO DI BLU", c: "MUSICA"},
+            {f: "LITTARE DEL TRICOLORE", c: "STORIA"},
+            {f: "LONDRA CAPITALE DEL REGNO UNITO", c: "GEOGRAFIA"},
+            {f: "LA GIOCONDA DI LEONARDO", c: "ARTE"},
+            {f: "ROSSO DI SERA BEL TEMPO SI SPERA", c: "PROVERBI"},
+            {f: "NON E TUTTO ORO QUEL CHE LUCCICA", c: "PROVERBI"},
+            {f: "SQUADRA CHE VINCE NON SI CAMBIA", c: "MODI DI DIRE"},
+            {f: "PARIGI E LA VILLE LUMIERE", c: "GEOGRAFIA"},
+            {f: "IL PADRINO", c: "CINEMA"},
+            {f: "RISOTTO ALLO ZAFFERANO", c: "CUCINA"},
+            {f: "ALBA CHIARA", c: "MUSICA"},
+            {f: "IL CANTO DEGLI ITALIANI", c: "MUSICA"},
+            {f: "LA GRANDE MURAUSERIA CINESE", c: "MONUMENTI"},
+            {f: "MILANO CITTA DELLA MODA", c: "GEOGRAFIA"},
+            {f: "GIOCO DI SQUADRA", c: "SPORT"},
+            {f: "MARADONA IL PIDE DE ORO", c: "SPORT"},
+            {f: "VALENTINO ROSSI IL DOTTORE", c: "SPORT"},
+            {f: "L ERBA DEL VICINO E SEMPRE PIU VERDE", c: "PROVERBI"},
+            {f: "CHI DORME NON PIGLIA PESCI", c: "PROVERBI"},
+            {f: "CHI TROVA UN AMICO TROVA UN TESORO", c: "PROVERBI"},
+            {f: "CANTA CHE TI PASSA", c: "MODI DI DIRE"},
+            {f: "IL MEGLIO DEVE ANCORA VENIRE", c: "MUSICA"},
+            {f: "IL MIO REGNO PER UN CAVALLO", c: "LETTERATURA"},
+            {f: "DIVINA COMMEDIA", c: "LETTERATURA"},
+            {f: "PROMESSI SPOSI", c: "LETTERATURA"},
+            {f: "HARRY POTTER E LA PIETRA FILOSOFALE", c: "LETTERATURA"},
+            {f: "IL SIGNORE DEGLI ANELLI", c: "CINEMA"},
+            {f: "GUERRE STELLARI", c: "CINEMA"},
+            {f: "AL CINEMA CON I POPCORN", c: "TEMPO LIBERO"},
+            {f: "UNA MELA AL GIORNO TOGLIE IL MEDICO DI TORNO", c: "PROVERBI"},
+            {f: "C EST LA VIE", c: "LINGUE"},
+            {f: "IL GATTOPARDO", c: "LETTERATURA"},
+            {f: "FIRENZE CULLA DEL RINASCIMENTO", c: "GEOGRAFIA"},
+            {f: "PIZZA MARGHERITA", c: "CUCINA"},
+            {f: "SPAGHETTI ALLO SCOGLIO", c: "CUCINA"},
+            {f: "IL VOLO DELLA FENICE", c: "MITOLOGIA"},
+            {f: "ERCOLE E LE DODICI FATICHE", c: "MITOLOGIA"},
+            {f: "NAPOLI E IL VESUVIO", c: "GEOGRAFIA"},
+            {f: "STATUA DELLA LIBERTA", c: "MONUMENTI"},
+            {f: "IL RE LEONE", c: "CINEMA ANIMAZIONE"},
+             // --- IL CURIOSONE ---
+    {f: "IL COLORE DELLE NUVOLE DIPENDE DALLA LUCE", c: "IL CURIOSONE"},
+    {f: "I FENICOTTERI NASCONO GRIGI E DIVENTANO ROSA", c: "IL CURIOSONE"},
+    {f: "L IMPRESSIONE DIGITALE DEL KOALA E UMANA", c: "IL CURIOSONE"},
+    {f: "LE API POSSONO RICONOSCERE I VOLTI UMANI", c: "IL CURIOSONE"},
+    {f: "IL CUORE DI UNA BALENA E GRANDE COME UN AUTO", c: "IL CURIOSONE"},
+    {f: "IL MIELE E L UNICO CIBO CHE NON SCADE MAI", c: "IL CURIOSONE"},
+    {f: "LE FORMICHE NON DORMONO MAI DURANTE LA VITA", c: "IL CURIOSONE"},
+    {f: "IL RUGGITO DEL LEONE SI SENTE A KM DI DISTANZA", c: "IL CURIOSONE"},
+    {f: "GLI ELEFANTI SONO GLI UNICI CHE NON SALTANO", c: "IL CURIOSONE"},
+    {f: "IL POLPO HA TRE CUORI E IL SANGUE BLU", c: "IL CURIOSONE"},
+    
+    // --- IL CURIOSONE (SCIENZA E NATURA) ---
+    {f: "IL CUORE DI UN COLIBRI BATTE MILLE VOLTE AL MINUTO", c: "IL CURIOSONE"},
+    {f: "LE FARFALLE SENTONO IL SAPORE CON LE LORO ZAMPE", c: "IL CURIOSONE"},
+    {f: "LO STOMACO UMANO PUO SCIOGLIERE UNA LAMETTA", c: "IL CURIOSONE"},
+    {f: "I RATTI SOFFRONO IL SOLLETICO E POSSONO RIDERE", c: "IL CURIOSONE"},
+    {f: "UN FULMINE E CINQUE VOLTE PIU CALDO DEL SOLE", c: "IL CURIOSONE"},
+    {f: "IL SANGUE DELLE ARAGOSTE E DI COLORE BLU", c: "IL CURIOSONE"},
+    {f: "I MAIALI NON POSSONO FISICAMENTE GUARDARE IL CIELO", c: "IL CURIOSONE"},
+    {f: "LE LUMACHE POSSONO DORMIRE PER TRE ANNI DI FILA", c: "IL CURIOSONE"},
+    {f: "GLI SQUALI ESISTONO DA PRIMA DEGLI ALBERI", c: "IL CURIOSONE"},
+    {f: "L ORO SI PUO MANGIARE MA NON HA ALCUN SAPORE", c: "IL CURIOSONE"},
+    {f: "IL CERVELLO UMANO GENERA ENERGIA PER UNA LAMPADINA", c: "IL CURIOSONE"},
+    {f: "GLI IPPOPOTAMI USANO IL SUDORE COME CREMA SOLARE", c: "IL CURIOSONE"},
+    {f: "LE PECORE POSSONO RICONOSCERE I VOLTI UMANI", c: "IL CURIOSONE"},
+    {f: "UN POLPO HA NOVE CERVELLI E TRE CUORI DISTINTI", c: "IL CURIOSONE"},
+    {f: "I GATTI NON SENTONO IL SAPORE DEL DOLCE", c: "IL CURIOSONE"},
+    {f: "LE STRISCE DELLE ZEBRE SERVONO PER LE MOSCHE", c: "IL CURIOSONE"},
+    {f: "IL CORPO UMANO CONTIENE ABBASTANZA CARBONIO PER MILLE MATITE", c: "IL CURIOSONE"},
+    {f: "LE FORMICHE POSSONO SOPRAVVIVERE SOTT ACQUA PER UN GIORNO", c: "IL CURIOSONE"},
+    {f: "L OCCHIO DELLO STRUZZO E PIU GRANDE DEL SUO CERVELLO", c: "IL CURIOSONE"},
+    {f: "IL RUGGITO DI UN LEONE SI SENTE A OTTO CHILOMETRI", c: "IL CURIOSONE"},
+    {f: "LE NUVOLE POSSONO PESARE QUANTO CENTO ELEFANTI", c: "IL CURIOSONE"},
+    {f: "I POLMONI UMANI HANNO LA STESSA AREA DI UN CAMPO DA TENNIS", c: "IL CURIOSONE"},
+    {f: "L IMPRONTA DELLA LINGUA E UNICA PER OGNI PERSONA", c: "IL CURIOSONE"},
+    {f: "GLI ELEFANTI SONO GLI UNICI MAMMIFERI CHE NON SALTANO", c: "IL CURIOSONE"},
+    {f: "LE API VOLANO PIU IN ALTO DEL MONTE EVEREST", c: "IL CURIOSONE"},
+    {f: "IL NASO UMANO PUO DISTINGUERE UN MILIARDO DI ODORI", c: "IL CURIOSONE"},
+    {f: "I CAMMELLI HANNO TRE PALPEBRE PER PROTEGGERSI DALLA SABBIA", c: "IL CURIOSONE"},
+    {f: "IL DNA UMANO E IDENTICO PER IL SESSANTA PER CENTO A QUELLO DELLA BANANA", c: "IL CURIOSONE"},
+    {f: "GLI ORSI POLARI HANNO LA PELLE NERA SOTTO IL PELO BIANCO", c: "IL CURIOSONE"},
+    {f: "LA LUCE DEL SOLE IMPIEGA OTTO MINUTI PER ARRIVARE SULLA TERRA", c: "IL CURIOSONE"},
+    {f: "I KOALA HANNO IMPRONTE DIGITALI SIMILI A QUELLE UMANE", c: "IL CURIOSONE"},
+    {f: "UN GIORNO SU VENERE DURA PIU DI UN ANNO SULLO STESSO PIANETA", c: "IL CURIOSONE"},
+    {f: "LE GIRAFFE HANNO LA LINGUA DI COLORE BLU E LUNGA MEZZO METRO", c: "IL CURIOSONE"},
+    {f: "IL VELENO DELLA COBRA REALE PUO UCCIDERE UN ELEFANTE ADULTO", c: "IL CURIOSONE"},
+    {f: "L ACQUA DELLE COCCOLE HA LA STESSA COMPOSIZIONE DEL PLASMA", c: "IL CURIOSONE"},
+    {f: "IL RAGNO PIU GRANDE DEL MONDO MANGIA GLI UCCELLI", c: "IL CURIOSONE"},
+    {f: "LE TIGRI HANNO LA PELLE A STRISCE NON SOLO IL PELO", c: "IL CURIOSONE"},
+    {f: "GLI SCORPIONI DIVENTANO FLUORESCENTI SOTTO LA LUCE ULTRAVIOLETTA", c: "IL CURIOSONE"},
+    {f: "UN GATTO HA TRENTADUE MUSCOLI IN OGNI ORECCHIO", c: "IL CURIOSONE"},
+    {f: "IL SUONO VIAGGIA PIU VELOCEMENTE NELL ACQUA CHE NELL ARIA", c: "IL CURIOSONE"},
+
+    // --- IL CURIOSONE (STORIA E MONDO) ---
+    {f: "GLI ANTICHI ROMANI USAVANO L URINA PER SBIANCARE I DENTI", c: "IL CURIOSONE"},
+    {f: "LA TORRE EIFFEL DIVENTA PIU ALTA D ESTATE PER IL CALORE", c: "IL CURIOSONE"},
+    {f: "IN GIAPPONE ESISTONO ANGURIE DI FORMA QUADRATA", c: "IL CURIOSONE"},
+    {f: "LA BANDIERA DEGLI STATI UNITI FU DISEGNATA DA UNO STUDENTE", c: "IL CURIOSONE"},
+    {f: "IL KETCHUP VENIVA VENDUTO COME MEDICINA NEL DICIANNOVESIMO SECOLO", c: "IL CURIOSONE"},
+    {f: "NAPOLEONE BONAPARTE NON ERA COSI BASSO COME SI CREDE", c: "IL CURIOSONE"},
+    {f: "IL NOME GOOGLE DERIVA DA UN ERRORE DI ORTOGRAFIA", c: "IL CURIOSONE"},
+    {f: "LE PRIME SVEGLIE ERANO PERSONE CHE BUSSAVANO ALLE FINESTRE", c: "IL CURIOSONE"},
+    {f: "IN ISLANDA NON ESISTONO RISTORANTI DELLA CATENA MCDONALDS", c: "IL CURIOSONE"},
+    {f: "LA GRANDE MURAGLIA CINESE NON SI VEDE DALLO SPAZIO", c: "IL CURIOSONE"},
+    {f: "GLI AZTECHI USAVANO I SEMI DI CACAO COME MONETA", c: "IL CURIOSONE"},
+    {f: "IL PRIMO SITO WEB DELLA STORIA E ANCORA ONLINE", c: "IL CURIOSONE"},
+    {f: "IL COLD PLAY HA COMPRATO UN INTERO BOSCO PER COMPENSARE LE EMISSIONI", c: "IL CURIOSONE"},
+    {f: "IL PROFUMO PIU COSTOSO DEL MONDO CONTIENE ORO E DIAMANTI", c: "IL CURIOSONE"},
+    {f: "I VICHINGHI NON INDOSSAVANO MAI ELMI CON LE CORNA", c: "IL CURIOSONE"},
+    {f: "IL PRESIDENTE LINCOLN ERA UN CAMPIONE DI LOTTA LIBERA", c: "IL CURIOSONE"},
+    {f: "SHAKESPEARE HA INVENTATO PIU DI MILLE SETTECENTO PAROLE", c: "IL CURIOSONE"},
+    {f: "LA STATUA DELLA LIBERTA ERA ORIGINARIAMENTE DI COLORE MARRONE", c: "IL CURIOSONE"},
+    {f: "IL CIOCCOLATO ERA CONSIDERATO LA BEVANDA DEGLI DEI", c: "IL CURIOSONE"},
+    {f: "LA REGINA ELISABETTA NON AVEVA BISOGNO DEL PASSAPORTO", c: "IL CURIOSONE"},
+
+    // --- COSA FANNO? (AZIONI COMPLESSE) ---
+    {f: "PREPARARE UN CESTINO DA PICNIC PER UNA GITA FUORI PORTA", c: "COSA FANNO?"},
+    {f: "CERCARE DI PRENDERE IL PELUCHE CON IL GANCIO AL LUNA PARK", c: "COSA FANNO?"},
+    {f: "LEGGERE L ORIZZONTE SPERANDO IN UNA GIORNATA DI SOLE", c: "COSA FANNO?"},
+    {f: "SBATTERE IL TAPPETO SUL BALCONE DI SABATO MATTINA", c: "COSA FANNO?"},
+    {f: "FARE LA FILA ALL UFFICIO POSTALE PER SPEDIRE UN PACCO", c: "COSA FANNO?"},
+    {f: "MANGIARE UN GELATO A TRE GUSTI SUL LUNGOMARE AL TRAMONTO", c: "COSA FANNO?"},
+    {f: "INSEGUIRE L AUTOBUS CHE STA PARTENDO DALLA FERMATA", c: "COSA FANNO?"},
+    {f: "SCATTARE UN SELFIE DI GRUPPO DAVANTI AL MONUMENTO", c: "COSA FANNO?"},
+    {f: "LAVARE LA MACCHINA CON IL TUBO DELL ACQUA IN GIARDINO", c: "COSA FANNO?"},
+    {f: "CUCINARE UN RISOTTO GIRANDO SEMPRE CON IL CUCCHIAIO DI LEGNO", c: "COSA FANNO?"},
+    {f: "GIOCARE A NASCONDINO TRA GLI ALBERI DEL PARCO CITTADINO", c: "COSA FANNO?"},
+    {f: "GONFIARE I BRACCIOLI AI BAMBINI PRIMA DI ENTRARE IN ACQUA", c: "COSA FANNO?"},
+    {f: "ASPETTARE I SALDI PER COMPRARE QUEL CAPPOTTO COSTOSO", c: "COSA FANNO?"},
+    {f: "ORDINARE UNA PIZZA DA ASPORTO PER VEDERE LA PARTITA", c: "COSA FANNO?"},
+    {f: "GIRARE IL CUSCINO DALLA PARTE FREDDA DURANTE LA NOTTE", c: "COSA FANNO?"},
+    {f: "CANTARE A SQUARCIAGOLA SOTTO LA DOCCIA DI PRIMA MATTINA", c: "COSA FANNO?"},
+    {f: "TOGLIERE LE ERBACCE DAL GIARDINO PER PIANTARE I FIORI", c: "COSA FANNO?"},
+    {f: "CERCARE DI NON PIANGERE MENTRE SI AFFETTANO LE CIPOLLE", c: "COSA FANNO?"},
+    {f: "APPENDERRE LE DECORAZIONI DI NATALE SU TUTTO IL BALCONE", c: "COSA FANNO?"},
+    {f: "SCRIVERE UNA LETTERA D AMORE CON PENNA E CALAMRAIO", c: "COSA FANNO?"},
+
+    // --- CUCINA (DESCRIZIONI DA MENU) ---
+    {f: "UNA TEGLIA DI LASAGNE AL FORNO CON CROSTICINA DORATA", c: "CUCINA"},
+    {f: "FRITTO MISTO DI CALAMARI E GAMBERETTI CON LIMONE FRESCO", c: "CUCINA"},
+    {f: "SPAGHETTI ALLA CARBONARA SENZA PANNA MA CON MOLTO PEPE", c: "CUCINA"},
+    {f: "POLENTA E BRUSCITT TIPICO PIATTO DELLA TRADIZIONE LOMBARDA", c: "CUCINA"},
+    {f: "UNA FETTA DI PANETTONE ARTIGIANALE CON CREMA AL MASCARPONE", c: "CUCINA"},
+    {f: "MELANZANE ALLA PARMIGIANA CON TANTA MOZZARELLA FILANTE", c: "CUCINA"},
+    {f: "TIRAMISU FATTO IN CASA CON I BISCOTTI SAVOIARDI", c: "CUCINA"},
+    {f: "BISTECCA ALLA FIORENTINA COTTA AL SANGUE SULLA BRACE", c: "CUCINA"},
+    {f: "RISOTTO AI FUNGHI PORCINI RACCOLTI NEL BOSCO", c: "CUCINA"},
+    {f: "UNA PIZZA NAPOLETANA DAL CORNICIONE ALTO E SOFFICE", c: "CUCINA"},
+    {f: "PECORINO SARDO ACCOMPAGNATO DA MIELE DI CASTAGNO", c: "CUCINA"},
+    {f: "TORTA DI MELE PROFUMATA ALLA CANNELLA E VANIGLIA", c: "CUCINA"},
+    {f: "ORATA AL CARTOCCIO CON PATATE OLIVE E POMODORINI", c: "CUCINA"},
+    {f: "TAGLIERE DI SALUMI E FORMAGGI CON MARMELLATA DI FICHI", c: "CUCINA"},
+    {f: "GNOCCHI ALLA SORRENTINA CON POMODORO E BASILICO FRESCO", c: "CUCINA"},
+    {f: "TROFIE AL PESTO GENOVESE CON PATATE E FAGIOLINI", c: "CUCINA"},
+    {f: "BUCATINI ALL AMATRICIANA CON GUANCIALE CROCCANTE", c: "CUCINA"},
+    {f: "SPIEDINI DI CARNE MISTA ALLA GRIGLIA CON ROSMARINO", c: "CUCINA"},
+    {f: "ZUPPA DI PESCE CON CROSTINI DI PANE AGLIATO", c: "CUCINA"},
+    {f: "CANNOLI SICILIANI RIPIENI DI RICOTTA E CANDITI", c: "CUCINA"},
+
+    // --- PERSONAGGI E SPETTACOLO ---
+    {f: "IL CONDUTTORE CHE FA SEMPRE IL GESTO DELLA RUOTA", c: "PERSONAGGI"},
+    {f: "IL GABIBBO E LE SUE INCHIESTE A STRISCIA LA NOTIZIA", c: "TELEVISIONE"},
+    {f: "VALERIO STAFFELLI E LA CONSEGNA DEL TAPIRO D ORO", c: "TELEVISIONE"},
+    {f: "GERRY SCOTTI E LA SUA RISATA INCONFONDIBILE", c: "PERSONAGGI"},
+    {f: "UN ATTORE DA PREMIO OSCAR CHE RECITA IN ITALIANO", c: "CINEMA"},
+    {f: "LA SIGLA DI APERTURA CHE FA BALLARE TUTTI", c: "TELEVISIONE"},
+    {f: "UN CONCORRENTE CHE INDOVINA LA FRASE CON UNA LETTERA", c: "TELEVISIONE"},
+    {f: "IL PUBBLICO CHE GRIDA FORTE GIRA LA RUOTA", c: "TELEVISIONE"},
+    {f: "I TRE TENORI CHE HANNO INCANTATO IL MONDO INTERO", c: "MUSICA"},
+    {f: "UNA CANTANTE FAMOSA PER I SUOI VESTITI STRAVAGANTI", c: "MUSICA"},
+
+    // --- CONTINUAZIONE IL CURIOSONE (FINO A 200 TOTALE) ---
+    {f: "IL MODO PIU VELOCE PER RAFFREDDARE UNA BIBITA E IL SALE", c: "IL CURIOSONE"},
+    {f: "GLI ASTRONAUTI POSSONO DIVENTARE PIU ALTI NELLO SPAZIO", c: "IL CURIOSONE"},
+    {f: "IL PRIMO ESSERE VIVENTE NELLO SPAZIO FU LA CAGNOLINA LAIKA", c: "IL CURIOSONE"},
+    {f: "LE UNGHIE DELLE MANI CRESCONO PIU VELOCEMENTE DI QUELLE DEI PIEDI", c: "IL CURIOSONE"},
+    {f: "IL PESCE PERSICO PUO VIVERE FUORI DALL ACQUA PER ORE", c: "IL CURIOSONE"},
+    {f: "LE ZEBRE SONO BIANCHE CON LE STRISCE NERE E NON VICEVERSA", c: "IL CURIOSONE"},
+    {f: "IL CUORE DEGLI ESSERI UMANI BATTE CENTOMILA VOLTE AL GIORNO", c: "IL CURIOSONE"},
+    {f: "LE PATATE FURONO IL PRIMO CIBO COLTIVATO NELLO SPAZIO", c: "IL CURIOSONE"},
+    {f: "UN CUCCHIAINO DI STELLA DI NEUTRONI PESEREBBE MILIARDI DI TONNELLATE", c: "IL CURIOSONE"},
+    {f: "LE FORMICHE NON HANNO POLMONI E RESPIRANO ATTRAVERSO LA PELLE", c: "IL CURIOSONE"},
+    {f: "LA LUNA SI ALLONTANA DALLA TERRA DI QUATTRO CENTIMETRI OGNI ANNO", c: "IL CURIOSONE"},
+    {f: "GLI ESSERI UMANI CONDIVIDONO IL CINQUANTA PER CENTO DEL DNA CON LE BANANE", c: "IL CURIOSONE"},
+    {f: "IL GIORNO PIU CORTO DELL ANNO E IL SOLSTIZIO D INVERNO", c: "IL CURIOSONE"},
+    {f: "GLI UCCELLI NON POSSONO INGOIARE NELLO SPAZIO SENZA GRAVITA", c: "IL CURIOSONE"},
+    {f: "IL TERMINE ROBOT DERIVA DA UNA PAROLA CHE SIGNIFICA LAVORO FORZATO", c: "IL CURIOSONE"},
+    {f: "I DELFINI DORMONO CON UN OCCHIO APERTO PER CONTROLLARE I PREDATORI", c: "IL CURIOSONE"},
+    {f: "LE BALENE POSSONO TRATTENERE IL RESPIRO PER PIU DI DUE ORE", c: "IL CURIOSONE"},
+    {f: "IL MONTE EVEREST CRESCE DI QUALCHE MILLIMETRO OGNI ANNO", c: "IL CURIOSONE"},
+    {f: "LA SABBIA VISTA AL MICROSCOPIO SEMBRA UN INSIEME DI CRISTALLI COLORATI", c: "IL CURIOSONE"},
+    {f: "IL PRIMO COMPUTER DELLA STORIA OCCUPAVA UN INTERA STANZA", c: "IL CURIOSONE"},
+    {f: "LE API POSSONO SENTIRE L ODORE DELLE BOMBE E DELLE DROGHE", c: "IL CURIOSONE"},
+    {f: "IL DIAMANTE E LA SOSTANZA NATURALE PIU DURA SULLA TERRA", c: "IL CURIOSONE"},
+    {f: "GLI SCIMPANZE POSSONO IMPARARE IL LINGUAGGIO DEI SEGNI UMANO", c: "IL CURIOSONE"},
+    {f: "L IMPRONTA DIGITALE SI FORMA PRIMA ANCORA DI NASCERE", c: "IL CURIOSONE"},
+    {f: "IL SUONO DEL TUONO E CAUSATO DALL ARIA CHE SI ESPANDE", c: "IL CURIOSONE"},
+    {f: "LE PIANTE POSSONO COMUNICARE TRA LORO ATTRAVERSO LE RADICI", c: "IL CURIOSONE"},
+    {f: "IL VOLO PIU LUNGO DI UNA GALLINA E STATO DI TREDICI SECONDI", c: "IL CURIOSONE"},
+    {f: "IL NASO E LE ORECCHIE NON SMETTONO MAI DI CRESCERE NELLA VITA", c: "IL CURIOSONE"},
+    {f: "LA MAGGIOR PARTE DELLA POLVERE IN CASA E PELLE UMANA MORTA", c: "IL CURIOSONE"},
+    {f: "IL SUDORE UMANO E INODORE SONO I BATTERI A CAUSARE L ODORE", c: "IL CURIOSONE"},
+    {f: "I PINGUINI POSSONO SALTARE FINO A DUE METRI FUORI DALL ACQUA", c: "IL CURIOSONE"},
+    {f: "GLI OCCHI DEGLI ANIMALI NOTTURNI RIFLETTONO LA LUCE COME SPECCHI", c: "IL CURIOSONE"},
+    {f: "IL CACAO ERA USATO DAGLI MAYA COME MEDICINA CONTRO LA FEBBRE", c: "IL CURIOSONE"},
+    {f: "LA GOMMA DA MASTICARE PIU ANTICA HA NOVEMILA ANNI", c: "IL CURIOSONE"},
+    {f: "IL DESERTO DEL SAHARA ERA UNA VOLTA UNA FORESTA TROPICALE", c: "IL CURIOSONE"},
+    {f: "GLI SQUALI NON HANNO OSSA MA SOLO CARTILAGINE", c: "IL CURIOSONE"},
+    {f: "I COCCODRILLI NON POSSONO CACCIAR FUORI LA LINGUA DALLA BOCCA", c: "IL CURIOSONE"},
+    {f: "IL VENTO PIU VELOCE DEL SISTEMA SOLARE SOFFIA SU NETTUNO", c: "IL CURIOSONE"},
+    {f: "LE COCCINELLE HANNO UN ODORE SGRADEVOLE PER DIFENDERSI", c: "IL CURIOSONE"},
+    {f: "IL CERVELLO DI UNA FORMICA HA DUECENTOCINQUANTA MILA NEURONI", c: "IL CURIOSONE"},
+    {f: "UN CHILO DI PIUME E UN CHILO DI PIOMBO PESANO UGUALI", c: "IL CURIOSONE"},
+    {f: "I MOSQUITO PREFERISCONO IL SANGUE DEL GRUPPO ZERO", c: "IL CURIOSONE"},
+    {f: "IL PRIMO VIDEOGIOCO DELLA STORIA ERA UN SIMULATORE DI TENNIS", c: "IL CURIOSONE"},
+    {f: "I LUPACHIOTTI NASCONO SORDI E CIECHI COME I GATTINI", c: "IL CURIOSONE"},
+    {f: "LE ONDE DEL MARE SONO CAUSATE DAL VENTO SULLA SUPERFICIE", c: "IL CURIOSONE"},
+    {f: "IL CIELO SEMBRA BLU PERCHE L ARIA DISPERDE LA LUCE SOLARE", c: "IL CURIOSONE"},
+    {f: "IL CORPO UMANO E COMPOSTO PER IL SETTANTA PER CENTO DI ACQUA", c: "IL CURIOSONE"},
+    {f: "I CAMMELLI NON IMMAGAZZINANO ACQUA NELLE GOBBE MA GRASSO", c: "IL CURIOSONE"},
+    {f: "GLI UCCELLI USANO IL CAMPO MAGNETICO TERRESTRE PER ORIENTARSI", c: "IL CURIOSONE"},
+    {f: "LA TERRA RUOTA SU SE STESSA A MILLE SETTECENTO CHILOMETRI ORARI", c: "IL CURIOSONE"},
+    {f: "IL FULMINE CERCA SEMPRE IL PUNTO PIU ALTO PER SCARICARSI", c: "IL CURIOSONE"},
+    {f: "LE STELLE CHE VEDIAMO POTREBBERO ESSERE GIA SPENTE DA TEMPO", c: "IL CURIOSONE"},
+    {f: "IL SOLE E UN MILIONE DI VOLTE PIU GRANDE DELLA TERRA", c: "IL CURIOSONE"},
+    {f: "GLI ASTRONAUTI MANGIANO CIBO DISIDRATATO E CONFEZIONATO", c: "IL CURIOSONE"},
+    {f: "LA VOCE UMANA SI MODIFICA SE SI RESPIRA ELIO", c: "IL CURIOSONE"},
+    {f: "LE FORMICHE POSSONO PORTARE PESI CINQUANTA VOLTE IL LORO CORPO", c: "IL CURIOSONE"},
+    {f: "IL CANTO DELLE BALENE PUO ESSERE SENTITO A CENTINAIA DI MIGLIA", c: "IL CURIOSONE"},
+    {f: "I CAVALLI POSSONO DORMIRE SIA IN PIEDI CHE SDRAIATI", c: "IL CURIOSONE"},
+    {f: "IL VELOCIRAPTOR AVEVA LE PIUME COME UN GRANDE UCCELLO", c: "IL CURIOSONE"},
+    {f: "I POMODORI SONO FRUTTI E NON VERDURE SECONDO LA BOTANICA", c: "IL CURIOSONE"},
+
+    // --- PROVERBI E MODI DI DIRE (VERSIONE ESTESA) ---
+    {f: "CHI DORME NON PIGLIA PESCI MA RIPOSA BENE", c: "PROVERBI"},
+    {f: "IL LUPO PERDE IL PELO MA NON IL VIZIO", c: "PROVERBI"},
+    {f: "MEGLIO UN UOVO OGGI CHE UNA GALLINA DOMANI", c: "PROVERBI"},
+    {f: "CHI FA DA SE FA PER TRE E NON SBAGLIA MAI", c: "PROVERBI"},
+    {f: "ROSSO DI SERA BEL TEMPO SI SPERA SEMPRE", c: "PROVERBI"},
+    {f: "NON CE DUE SENZA TRE E IL QUATTRO VIEN DA SE", c: "PROVERBI"},
+    {f: "A CAVAL DONATO NON SI GUARDA IN BOCCA", c: "PROVERBI"},
+    {f: "L ERBA DEL VICINO E SEMPRE PIU VERDE", c: "PROVERBI"},
+    {f: "L UNIONE FA LA FORZA IN OGNI OCCASIONE", c: "PROVERBI"},
+    {f: "TUTTE LE STRADE PORTANO ALLA CITTA DI ROMA", c: "PROVERBI"},
+    {f: "AL CONTADINO NON FAR SAPERE QUANTO E BUONO", c: "PROVERBI"},
+    {f: "NON DIRE GATTO SE NON CE L HAI NEL SACCO", c: "PROVERBI"},
+    {f: "LA PAZIENZA E LA VIRTU DEI FORTI", c: "PROVERBI"},
+    {f: "UNA MELA AL GIORNO TOGLIE IL MEDICO DI TORNO", c: "PROVERBI"},
+    {f: "OGNI LASCIATA E PERSA PER SEMPRE", c: "MODI DI DIRE"},
+    {f: "CADERE DALLA PADELLA NELLA BRACE ARDENTE", c: "MODI DI DIRE"},
+    {f: "ESSERE COME IL DIAVOLO E L ACQUA SANTA", c: "MODI DI DIRE"},
+    {f: "AVERE UN DIAVOLO PER OGNI CAPELLO", c: "MODI DI DIRE"},
+    {f: "CERCARE UN AGO IN UN PAGLIAIO IMMENSO", c: "MODI DI DIRE"},
+    {f: "METTERE I PUNTINI SULLE I CON PRECISIONE", c: "MODI DI DIRE"},
+
+    // --- CUCINA (PIATTI E RICETTE) ---
+    {f: "SPAGHETTI ALLA CHITARRA CON PESTO E PINOLI", c: "CUCINA"},
+    {f: "UNA BELLA FETTA DI CROSTATA ALLA FRUTTA", c: "CUCINA"},
+    {f: "ORECCHIETTE ALLE CIME DI RAPA E ACCIUGHE", c: "CUCINA"},
+    {f: "MELANZANE ALLA PARMIGIANA FATTE IN CASA", c: "CUCINA"},
+    {f: "RISOTTO ALLO ZAFFERANO CON OSSOBUCO", c: "CUCINA"},
+    {f: "PENNE ALL ARRABBIATA CON MOLTO PEPERONCINO", c: "CUCINA"},
+    {f: "POLENTA E CAPRIOLO NELLE SERE D INVERNO", c: "CUCINA"},
+    {f: "UNA PIZZA MARGHERITA COTTA NEL FORNO A LEGNA", c: "CUCINA"},
+    {f: "IL TIRAMISU CON TANTO CACAO E MASCARPONE", c: "CUCINA"},
+    {f: "TAGLIATELLE AL RAGU DELLA NONNA", c: "CUCINA"},
+    {f: "FRITTO MISTO DI PARANZA SUL LUNGOMARE", c: "CUCINA"},
+    {f: "TORTA DI MELE CALDA CON GELATO ALLA PANNA", c: "CUCINA"},
+    {f: "LASAGNE AL FORNO RICCHE DI BESCIAMELLA", c: "CUCINA"},
+    {f: "BISTECCA ALLA FIORENTINA MOLTO AL SANGUE", c: "CUCINA"},
+    {f: "PROFITEROL AL CIOCCOLATO FONDENTE", c: "CUCINA"},
+
+    // --- SPETTACOLO E TV ---
+    {f: "IL PROGRAMMA CONDOTTO DA GERRY SCOTTI", c: "TELEVISIONE"},
+    {f: "STASERA VA IN ONDA UN FILM IN PRIMA VISIONE", c: "TELEVISIONE"},
+    {f: "I CONCORRENTI GIRANO LA RUOTA DELLA FORTUNA", c: "TELEVISIONE"},
+    {f: "UN APPLAUSO DEL PUBBLICO IN STUDIO", c: "TELEVISIONE"},
+    {f: "LA SIGLA DI APERTURA DEL FESTIVAL DI SANREMO", c: "TELEVISIONE"},
+    {f: "STRISCIA LA NOTIZIA E IL GABIBBO", c: "TELEVISIONE"},
+    {f: "UN ATTORE FAMOSO SUL TAPPETO ROSSO", c: "CINEMA"},
+    {f: "IL REGISTA HA VINTO IL PREMIO OSCAR", c: "CINEMA"},
+    {f: "CORTINA D AMPEZZO E I CINEPANETTONI", c: "CINEMA"},
+    {f: "IL TRONO DI SPADE E LE CRONACHE DEL GHIACCIO", c: "SERIE TV"},
+
+    // --- GEOGRAFIA E VIAGGI ---
+    {f: "UNA VACANZA RILASSANTE SULLE ALPI", c: "VIAGGI"},
+    {f: "VISITARE IL COLOSSEO E I FORI IMPERIALI", c: "GEOGRAFIA"},
+    {f: "LE SPIAGGE BIANCHE DELLA SARDEGNA MERIDIONALE", c: "GEOGRAFIA"},
+    {f: "LAGO DI COMO E LE SUE BELLISSIME VILLE", c: "GEOGRAFIA"},
+    {f: "UN VIAGGIO DI NOZZE ALLE ISOLE MALDIVE", c: "VIAGGI"},
+    {f: "LONDRA E IL CAMBIO DELLA GUARDIA A PALAZZO", c: "GEOGRAFIA"},
+    {f: "PARIGI E LA SALITA SULLA TORRE EIFFEL", c: "GEOGRAFIA"},
+    {f: "I CANALI DI VENEZIA IN GONDOLA", c: "GEOGRAFIA"},
+    {f: "IL VESUVIO DOMINA IL GOLFO DI NAPOLI", c: "GEOGRAFIA"},
+    {f: "AMMIRARE L AURORA BOREALE IN NORVEGIA", c: "VIAGGI"},
+
+    // --- MUSICA (TITOLI E TESTI) ---
+    {f: "VOLARE NEL BLU DIPINTO DI BLU", c: "MUSICA"},
+    {f: "ALBACHIARA E LA CANZONE DI VASCO ROSSI", c: "MUSICA"},
+    {f: "PENSIERO STUPENDO NASCE UN PO PER VOLTA", c: "MUSICA"},
+    {f: "MA IL CIELO E SEMPRE PIU BLU SOPRA DI NOI", c: "MUSICA"},
+    {f: "CERCO UN CENTRO DI GRAVITA PERMANENTE", c: "MUSICA"},
+    {f: "L EMOZIONE NON HA VOCE E CANTA CELENTANO", c: "MUSICA"},
+    {f: "GENTE DI MARE CHE SE NE VA", c: "MUSICA"},
+    {f: "SOTTO QUESTO SOLE E BELLO PEDALARE", c: "MUSICA"},
+    {f: "COMINCIARE UNA VITA SPERICOLATA", c: "MUSICA"},
+    {f: "UNA LUNGA STORIA D AMORE", c: "MUSICA"},
+
+    // --- COSA FANNO? ---
+    {f: "GIRARE LA RUOTA E COMPRARE UNA VOCALE", c: "COSA FANNO?"},
+    {f: "FARE LA SPESA AL MERCATO RIONALE", c: "COSA FANNO?"},
+    {f: "ANDARE IN PALESTRA PER TENERSI IN FORMA", c: "COSA FANNO?"},
+    {f: "GIRARE IL MONDO CON LO ZAINO IN SPALLA", c: "COSA FANNO?"},
+    {f: "ASCOLTARE LA RADIO MENTRE SI GUIDA", c: "COSA FANNO?"},
+    {f: "COLLEZIONARE FRANCOBOLLI E MONETE ANTICHE", c: "COSA FANNO?"},
+    {f: "BALLARE IL LISCIO NELLE BALERE ROMAGNOLE", c: "COSA FANNO?"},
+    {f: "GIOCARE A CALCETTO CON GLI AMICI DI SEMPRE", c: "COSA FANNO?"},
+    {f: "DIPINGERE UN QUADRO CON I COLORI A OLIO", c: "COSA FANNO?"},
+    {f: "LEGGERE UN LIBRO SOTTO L OMBRELLONE", c: "COSA FANNO?"},
+
+    // --- OGGETTI E VITA QUOTIDIANA ---
+    {f: "UNA MACCHINA DA SCRIVERE DI ALTRI TEMPI", c: "OGGETTI"},
+    {f: "IL TELECOMANDO CHE NON SI TROVA MAI", c: "OGGETTI"},
+    {f: "UN OROLOGIO DA POLSO CON IL CINTURINO", c: "OGGETTI"},
+    {f: "LA SVEGLIA CHE SUONA TROPPO PRESTO", c: "OGGETTI"},
+    {f: "UN OMBRELLO CHE SI APRE AL CONTRARIO", c: "OGGETTI"},
+    {f: "LE CHIAVI DI CASA NEL FONDO DELLA BORSA", c: "OGGETTI"},
+    {f: "UNA FOTOCAMERA DIGITALE DI ULTIMA GENERAZIONE", c: "OGGETTI"},
+    {f: "IL CARICABATTERIE DEL TELEFONO CELLULARE", c: "OGGETTI"},
+    {f: "UN DIVANO COMODO DAVANTI ALLA TV", c: "OGGETTI"},
+    {f: "LA BOTTIGLIA DI VINO PER IL BRINDISI", c: "OGGETTI"},
+
+    // --- TITOLI DI LIBRI ---
+    {f: "IL PICCOLO PRINCIPE DI SAINT EXUPERY", c: "LIBRI"},
+    {f: "I PROMESSI SPOSI DI ALESSANDRO MANZONI", c: "LIBRI"},
+    {f: "IL NOME DELLA ROSA DI UMBERTO ECO", c: "LIBRI"},
+    {f: "VENTIMILA LEGHE SOTTO I MARI", c: "LIBRI"},
+    {f: "IL RITRATTO DI DORIAN GRAY", c: "LIBRI"},
+    {f: "ORGOGLIO E PREGIUDIZIO DI JANE AUSTEN", c: "LIBRI"},
+    {f: "CRONACA DI UNA MORTE ANNUNCIATA", c: "LIBRI"},
+    {f: "CENT ANNI DI SOLITUDINE", c: "LIBRI"},
+    {f: "L ISOLA DEL TESORO DI STEVENSON", c: "LIBRI"},
+    {f: "IL CODICE DA VINCI DI DAN BROWN", c: "LIBRI"}
+        ];
+
+        let SPOTS = [500, "BANK", 300, "x2", "PASS", 700, 250, 5000, "JOLLY", "BANK", 600, 200, 1000, 150, "PASS", 800, 450, 1200, "BANK", 2500, 300, "x2", 200, 1500];
+        const COLORS = ["#f39c12", "#000", "#e74c3c", "#9b59b6", "#ddd", "#3498db", "#1abc9c", "#f1c40f", "#ff00ff", "#000", "#e67e22", "#2ecc71", "#34495e", "#16a085", "#ddd", "#c0392b", "#8e44ad", "#2980b9", "#000", "#d35400", "#27ae60", "#9b59b6", "#f39c12", "#2c3e50"];
+
+        function toggleRegia() { 
+            document.getElementById('gm-panel').classList.toggle('open');
+            if(document.getElementById('gm-panel').classList.contains('open')) updateMasterPlayerList();
+        }
+
+        function startGame() {
+            if(audioCtx.state === 'suspended') audioCtx.resume();
+            const inps = document.querySelectorAll('#p-inputs input');
+            players = [];
+            inps.forEach(i => { if(i.value.trim()) players.push({name: i.value.toUpperCase(), bank: 0, jolly: 0}); });
+            if(players.length < 2) return alert("Minimo 2 giocatori!");
+            document.getElementById('menu').style.display = 'none';
+            document.getElementById('game-ui').style.display = 'flex';
+            document.getElementById('gm-wheel-data').value = SPOTS.join(', ');
+            drawWheel(); newRound();
+        }
+
+        function drawWheel() {
+            const canvas = document.getElementById('canvas-wheel'); const ctx = canvas.getContext('2d');
+            const arc = (Math.PI*2)/24; ctx.clearRect(0,0,600,600);
+            for(let i=0; i<24; i++) {
+                ctx.save(); ctx.translate(300,300); ctx.rotate(i*arc);
+                ctx.beginPath(); ctx.moveTo(0,0); ctx.arc(0,0,290,0,arc);
+                ctx.fillStyle = COLORS[i % COLORS.length]; ctx.fill(); ctx.stroke();
+                ctx.rotate(arc/2); ctx.textAlign="right"; ctx.fillStyle="#fff"; ctx.font="bold 16px Arial";
+                ctx.fillText(SPOTS[i], 270, 8); ctx.restore();
+            }
+        }
+
+        function spinWheel() {
+            if(!canSpin) return; canSpin = false;
+            document.getElementById('wheel-overlay').classList.add('open');
+            setTimeout(() => {
+                const extra = Math.floor(Math.random() * 360) + 2160;
+                currentRot += extra;
+                document.getElementById('canvas-wheel').style.transform = `rotate(${currentRot}deg)`;
+                let ticks = 0;
+                const tInt = setInterval(() => { if(ticks++ < 25) sfx(1200, 'square', 0.03, 0.02); else clearInterval(tInt); }, 180);
+                setTimeout(() => {
+                    const idx = Math.floor(((360 - (currentRot % 360) + 270) % 360) / 15) % 24;
+                    wheelVal = SPOTS[idx];
+                    document.getElementById('wheel-val').innerText = wheelVal;
+                    handleResult();
+                }, 5200);
+            }, 500);
+        }
+
+        function handleResult() {
+            setTimeout(() => {
+                document.getElementById('wheel-overlay').classList.remove('open');
+                if(wheelVal === "BANK" || wheelVal === "BANCAROTTA") {
+                    players[curP].bank = 0; nextTurn("BANCAROTTA!");
+                } else if(wheelVal === "PASS" || wheelVal === "PASSA") {
+                    nextTurn("PASSA TURNO");
+                } else if(wheelVal === "x2") {
+                    players[curP].bank *= 2; msg("RADDOPPIO!"); updateUI(); canSpin = true;
+                } else if(wheelVal === "JOLLY") {
+                    players[curP].jolly++; msg("JOLLY!"); updateUI(); canSpin = true;
+                } else {
+                    showInput('letter');
+                }
+            }, 1200);
+        }
+
+        function showInput(m) {
+            if(m === 'vowel' && players[curP].bank < 250) return msg("SOLDI INSUFFICIENTI!");
+            mode = m; document.getElementById('input-bar').style.display = 'flex';
+            document.getElementById('input-prompt').innerText = m === 'solve' ? "RISOLVI LA FRASE" : (m === 'vowel' ? "VOCALE (-€250)" : `LETTERA DA €${wheelVal}`);
+            const inp = document.getElementById('cur-input'); inp.value = ''; inp.focus();
+        }
+
+        document.getElementById('cur-input').addEventListener('keyup', (e) => {
+            if(e.key === 'Enter') {
+                const val = e.target.value.toUpperCase().trim();
+                document.getElementById('input-bar').style.display = 'none';
+                processGuess(val);
+            }
+        });
+
+        async function processGuess(v) {
+            if(!v) { canSpin = true; return; }
+            if(mode === 'solve') {
+                if(v.replace(/\s/g,'') === phrase.f.replace(/\s/g,'')) {
+                    await revealAllSequential(); msg("VITTORIA!");
+                    setTimeout(() => { alert("ROUND VINTO!"); newRound(); }, 2000);
+                } else { nextTurn("ERRORE!"); }
+            } else {
+                const matches = Array.from(document.querySelectorAll(`.tile[data-char="${v}"]:not(.flipped)`));
+                if(matches.length > 0) {
+                    canSpin = false;
+                    for (let t of matches) { t.classList.add('flipped'); sfx(600, 'sine', 0.1); await new Promise(r => setTimeout(r, 500)); }
+                    if(mode === 'letter') players[curP].bank += (parseInt(wheelVal) || 0) * matches.length;
+                    if(mode === 'vowel') players[curP].bank -= 250;
+                    updateUI(); canSpin = true;
+                } else {
+                    if(mode === 'vowel') players[curP].bank -= 250;
+                    nextTurn("NON C'È!");
+                }
+            }
+        }
+
+        function nextTurn(txt) {
+            msg(txt);
+            setTimeout(() => {
+                curP = (curP + 1) % players.length;
+                updateUI(); canSpin = true;
+                msg(`TOCCA A ${players[curP].name}`);
+            }, 2000);
+        }
+
+        function newRound() {
+            phrase = DATABASE[Math.floor(Math.random()*DATABASE.length)];
+            document.getElementById('cat-display').innerText = phrase.c;
+            renderBoard(); updateUI(); canSpin = true;
+        }
+
+        function renderBoard() {
+            const board = document.getElementById('board'); board.innerHTML = '';
+            const words = phrase.f.split(' ');
+            let currentRow = document.createElement('div'); currentRow.className = 'row';
+            let charCount = 0; const MAX_PER_ROW = 14;
+            words.forEach((word, index) => {
+                if (charCount + word.length > MAX_PER_ROW && charCount > 0) {
+                    board.appendChild(currentRow);
+                    currentRow = document.createElement('div'); currentRow.className = 'row';
+                    charCount = 0;
+                }
+                word.split('').forEach(char => {
+                    const t = document.createElement('div'); t.className = 'tile'; t.dataset.char = char;
+                    t.innerHTML = `<div class="tile-in"><div class="face face-front active"></div><div class="face face-back">${char}</div></div>`;
+                    currentRow.appendChild(t); charCount++;
+                });
+                if (index < words.length - 1 && charCount < MAX_PER_ROW) {
+                    const space = document.createElement('div'); space.className = 'tile'; space.style.visibility = 'hidden';
+                    currentRow.appendChild(space); charCount++;
+                }
+            });
+            board.appendChild(currentRow);
+        }
+
+        async function revealAllSequential() {
+            for(let t of document.querySelectorAll('.tile:not(.flipped)')) {
+                if(t.dataset.char) { t.classList.add('flipped'); await new Promise(r => setTimeout(r, 100)); }
+            }
+        }
+
+        function updateUI() {
+            const h = document.getElementById('hud-top'); h.innerHTML = '';
+            players.forEach((p, i) => {
+                h.innerHTML += `<div class="p-card ${i===curP?'active':''}">
+                    <div style="font-size:0.7rem; color:#888;">${p.name}</div>
+                    <div class="p-bank">€ ${p.bank}</div>
+                </div>`;
+            });
+            if(document.getElementById('gm-panel').classList.contains('open')) updateMasterPlayerList();
+        }
+
+        function msg(t) {
+            const m = document.getElementById('status-msg'); m.innerText = t;
+            m.style.opacity = 1; setTimeout(() => m.style.opacity = 0, 2000);
+        }
+
+        function updateMasterPlayerList() {
+            const container = document.getElementById('gm-players-list'); container.innerHTML = '';
+            players.forEach((p, i) => {
+                container.innerHTML += `<div class="gm-player-row">
+                    <span style="font-size:0.7rem">${p.name}</span>
+                    <div>
+                        <button onclick="modifyBank(${i}, -500)" style="background:#444; border:none; padding:2px 5px; color:#fff">-</button>
+                        <span style="color:var(--g); margin:0 5px">€${p.bank}</span>
+                        <button onclick="modifyBank(${i}, 500)" style="background:#444; border:none; padding:2px 5px; color:#fff">+</button>
+                    </div>
+                </div>`;
+            });
+        }
+
+        function modifyBank(idx, amt) {
+            players[idx].bank = Math.max(0, players[idx].bank + amt);
+            updateUI();
+        }
+
+        function updateWheelConfig() {
+            SPOTS = document.getElementById('gm-wheel-data').value.split(',').map(s => s.trim().toUpperCase());
+            drawWheel(); msg("AGGIORNATA!");
+        }
+
+        function forceNewRound() {
+            const c = document.getElementById('gm-cat').value;
+            const f = document.getElementById('gm-phrase').value;
+            if(c && f) { 
+                phrase = {f: f.toUpperCase().trim(), c: c.toUpperCase().trim()}; 
+                renderBoard(); document.getElementById('cat-display').innerText = phrase.c;
+                toggleRegia();
+            }
+        }
+    </script>
+</body>
+</html>
